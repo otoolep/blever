@@ -15,6 +15,7 @@ import (
 
 var batchSize = flag.Int("batchSize", 100, "batch size for indexing")
 var dupe = flag.Int("dupe", 1, "line dupe factor")
+var maxprocs = flag.Int("maxprocs", 1, "GOMAXPROCS")
 var indexPath = flag.String("index", "logs.bleve", "index path")
 var logsPath = flag.String("logs", "zoto_sample_logs.log.100k", "path to log file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -23,7 +24,7 @@ var memprofile = flag.String("memprofile", "", "write mem profile to file")
 func main() {
 	flag.Parse()
 
-	log.Printf("GOMAXPROCS: %d", runtime.GOMAXPROCS(-1))
+	runtime.GOMAXPROCS(*dupe)
 
 	// To profile, execute 'go tool pprof simple_log_index <pprof file>'
 	if *cpuprofile != "" {
