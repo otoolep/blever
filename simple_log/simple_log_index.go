@@ -26,7 +26,7 @@ var memprofile = flag.String("memprofile", "", "write mem profile to file")
 func main() {
 	flag.Parse()
 
-	runtime.GOMAXPROCS(*dupe)
+	runtime.GOMAXPROCS(*maxprocs)
 
 	// To profile, execute 'go tool pprof simple_log_index <pprof file>'
 	if *cpuprofile != "" {
