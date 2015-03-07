@@ -74,7 +74,7 @@ func main() {
 	startTime := time.Now()
 
 	totalIndexed := 0
-	for i, l := range lines[:20000] {
+	for i, l := range lines {
 		logChans[i%*shards] <- l
 		totalIndexed++
 	}
