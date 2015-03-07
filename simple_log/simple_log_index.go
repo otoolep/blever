@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/blevesearch/bleve"
@@ -15,6 +16,7 @@ import (
 
 var batchSize = flag.Int("batchSize", 100, "batch size for indexing")
 var dupe = flag.Int("dupe", 1, "line dupe factor")
+var shards = flag.Int("shards", 1, "number of index shards")
 var maxprocs = flag.Int("maxprocs", 1, "GOMAXPROCS")
 var indexPath = flag.String("index", "logs.bleve", "index path")
 var logsPath = flag.String("logs", "zoto_sample_logs.log.100k", "path to log file")
@@ -55,38 +57,34 @@ func main() {
 	}
 
 	// Index them!
-	if _, err := os.Stat(*indexPath); err == nil {
-		log.Printf("removing existing index at %s", *indexPath)
-		os.RemoveAll(*indexPath)
-	}
 	log.Print("indexing commencing....")
-	mapping := bleve.NewIndexMapping()
-	index, err := bleve.New(*indexPath, mapping)
+
+	// Create indexers.
+	var wg sync.WaitGroup
+	logChans := make([]chan interface{}, *shards)
+	for n := 0; n < *shards; n++ {
+		wg.Add(1)
+		logChans[n], err = createIndexer(*indexPath+strconv.Itoa(n), *batchSize, &wg)
+		if err != nil {
+			log.Fatalf("failed to create indexing channel %d: %s", n, err.Error())
+		}
+		log.Printf("created indexing channel %d", n)
+	}
 
 	startTime := time.Now()
 
-	batch := bleve.NewBatch()
-	batchCount := 0
 	totalIndexed := 0
-	for i, l := range lines {
-		data := struct {
-			Line string
-		}{
-			Line: l,
-		}
-		batch.Index(strconv.Itoa(i), data)
-		batchCount++
+	for i, l := range lines[:20000] {
+		logChans[i%*shards] <- l
 		totalIndexed++
-
-		if batchCount >= *batchSize {
-			if err := index.Batch(batch); err != nil {
-				log.Fatalf("failed to index batch of lines: %s", err.Error())
-			}
-			log.Printf("indexed batch %d", i)
-			batch = bleve.NewBatch()
-			batchCount = 0
-		}
 	}
+
+	for _, c := range logChans {
+		close(c)
+	}
+
+	log.Print("waiting for indexing channels to finish.")
+	wg.Wait()
 
 	pprof.StopCPUProfile()
 
@@ -97,4 +95,49 @@ func main() {
 	log.Print("indexing complete.")
 	log.Printf("average line length: %d", totalLen/len(lines))
 	log.Printf("indexed %d documents, in %.2fs (average %.2fms/doc). %f/sec", totalIndexed, indexDurationSeconds, timePerDoc/float64(time.Millisecond), float64(totalIndexed)/indexDurationSeconds)
+}
+
+func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup) (chan interface{}, error) {
+	logChan := make(chan interface{})
+
+	if _, err := os.Stat(indexPath); err == nil {
+		log.Printf("removing existing index at %s", indexPath)
+		os.RemoveAll(indexPath)
+	}
+
+	mapping := bleve.NewIndexMapping()
+	index, err := bleve.New(indexPath, mapping)
+	if err != nil {
+		return logChan, err
+	}
+
+	go func() {
+		batch := bleve.NewBatch()
+		batchCount := 0
+		numIndex := 0
+
+		for l := range logChan {
+			data := struct {
+				Line string
+			}{
+				Line: l.(string),
+			}
+
+			batch.Index(strconv.Itoa(numIndex), data)
+			batchCount++
+			numIndex++
+
+			if batchCount >= batchSize {
+				if err := index.Batch(batch); err != nil {
+					log.Fatalf("failed to index batch of lines: %s", err.Error())
+				}
+				batch = bleve.NewBatch()
+				batchCount = 0
+			}
+		}
+		log.Printf("indexing channel for shard %s done, %d lines indexed", indexPath, numIndex)
+		wg.Done()
+	}()
+
+	return logChan, nil
 }
