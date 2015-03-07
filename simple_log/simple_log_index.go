@@ -14,6 +14,7 @@ import (
 )
 
 var batchSize = flag.Int("batchSize", 100, "batch size for indexing")
+var dupe = flag.Int("dupe", 1, "line dupe factor")
 var indexPath = flag.String("index", "logs.bleve", "index path")
 var logsPath = flag.String("logs", "zoto_sample_logs.log.100k", "path to log file")
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
@@ -47,7 +48,9 @@ func main() {
 	for scanner.Scan() {
 		l := scanner.Text()
 		totalLen = totalLen + len(l)
-		lines = append(lines, l)
+		for n := 0; n < *dupe; n++ {
+			lines = append(lines, l)
+		}
 	}
 
 	// Index them!
@@ -64,7 +67,7 @@ func main() {
 	batch := bleve.NewBatch()
 	batchCount := 0
 	totalIndexed := 0
-	for i, l := range lines[:10000] {
+	for i, l := range lines {
 		data := struct {
 			Line string
 		}{
