@@ -9,12 +9,18 @@ import (
 
 const indexPath = "index.bleve"
 const log1 = "<134>1 2013-09-04T10:25:52.618085 ubuntu sshd 1999 - password accepted for user root"
-const log2 = "<134>1 2013-09-04T10:25:52.618085 ubuntu sshd 1999 - password rejected for user philip"
+const log2 = "password rejected for user philip"
 const log3 = "this is a plain message"
 
 type LogLine struct {
 	ID   string
 	Line string
+}
+
+type LogLineWithAppName struct {
+	ID      string
+	Line    string
+	AppName string
 }
 
 func main() {
@@ -65,4 +71,58 @@ func main() {
 	}
 	log.Println(searchResults)
 
+	// log 2
+	data2 := LogLineWithAppName{ID: "2", Line: log2, AppName: "pamd"}
+	if err = index.Index(data2.ID, data2); err != nil {
+		log.Fatalf("failed to index: %s", err.Error())
+	}
+	log.Println("finished indexing")
+	q2 := "pamd"
+	log.Printf(`searching for "%s"`, q2)
+	query2 := bleve.NewPhraseQuery([]string{q2}, "AppName")
+	search = bleve.NewSearchRequest(query2)
+	searchResults, err = index.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	if len(searchResults.Hits) > 0 {
+		for _, h := range searchResults.Hits {
+			log.Println(">>>>", h.ID)
+		}
+	} else {
+		log.Println("no hits")
+	}
+
+	// log 2 -- again
+	query3 := bleve.NewPhraseQuery([]string{q2}, "Line")
+	search = bleve.NewSearchRequest(query3)
+	searchResults, err = index.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	if len(searchResults.Hits) > 0 {
+		for _, h := range searchResults.Hits {
+			log.Println(">>>>", h.ID)
+		}
+	} else {
+		log.Println("no hits")
+	}
+
+	// log 2 -- again
+	query4 := bleve.NewPhraseQuery([]string{q2}, "appname")
+	search = bleve.NewSearchRequest(query4)
+	searchResults, err = index.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	if len(searchResults.Hits) > 0 {
+		for _, h := range searchResults.Hits {
+			log.Println(">>>>", h.ID)
+		}
+	} else {
+		log.Println("no hits")
+	}
 }
