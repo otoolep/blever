@@ -146,8 +146,8 @@ func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup, lines []
 func buildLogLineMapping() *bleve.IndexMapping {
 	// a generic reusable mapping for english text
 	standardJustIndexed := bleve.NewTextFieldMapping()
-	standardJustIndexed.Store = true
-	standardJustIndexed.IncludeInAll = true
+	standardJustIndexed.Store = false
+	standardJustIndexed.IncludeInAll = false
 	standardJustIndexed.IncludeTermVectors = false
 	standardJustIndexed.Analyzer = "standard"
 
