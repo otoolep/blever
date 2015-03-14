@@ -89,6 +89,29 @@ func main() {
 	log.Printf("average line length: %d", totalLen/len(lines))
 	log.Printf("indexed %d documents, in %.2fs (average %.2fms/doc). %d/sec", totalIndexed, indexDuration.Seconds(),
 		timePerDoc/float64(time.Millisecond), int(float64(totalIndexed)/indexDuration.Seconds()))
+
+	// Create an index alias, add all indexes, and then match all docs. This is to verify that all
+	// indexing actually took place.
+	alias := bleve.NewIndexAlias()
+	for n := 0; n < *shards; n++ {
+		index, err := bleve.Open(*indexPath + strconv.Itoa(n))
+		if err != nil {
+			log.Fatalf("failed to create index for alias %d: %s", n, err.Error())
+
+		}
+
+		alias.Add(index)
+	}
+
+	query := bleve.NewMatchAllQuery()
+	search := bleve.NewSearchRequest(query)
+	searchResults, err := alias.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	log.Println(searchResults)
+
 }
 
 func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup, lines []string) error {
@@ -137,6 +160,7 @@ func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup, lines []
 		}
 
 		log.Printf("indexing channel for shard %s done, %d lines indexed", indexPath, numIndex)
+		index.Close()
 		wg.Done()
 	}()
 
