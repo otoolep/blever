@@ -67,7 +67,7 @@ func main() {
 	var wg sync.WaitGroup
 	for n := 0; n < *shards; n++ {
 		wg.Add(1)
-		err = createIndexer(*indexPath+strconv.Itoa(n), *batchSize, &wg, lines)
+		err = createIndexer(n*len(lines), *indexPath+strconv.Itoa(n), *batchSize, &wg, lines)
 		if err != nil {
 			log.Fatalf("failed to create indexing channel %d: %s", n, err.Error())
 		}
@@ -92,6 +92,7 @@ func main() {
 
 	// Create an index alias, add all indexes, and then match all docs. This is to verify that all
 	// indexing actually took place.
+	var indexes = make([]bleve.Index, 0)
 	alias := bleve.NewIndexAlias()
 	for n := 0; n < *shards; n++ {
 		index, err := bleve.Open(*indexPath + strconv.Itoa(n))
@@ -99,9 +100,9 @@ func main() {
 			log.Fatalf("failed to create index for alias %d: %s", n, err.Error())
 
 		}
-
-		alias.Add(index)
+		indexes = append(indexes, index)
 	}
+	alias.Add(indexes...)
 
 	query := bleve.NewMatchAllQuery()
 	search := bleve.NewSearchRequest(query)
@@ -112,13 +113,21 @@ func main() {
 	}
 	log.Println(searchResults)
 
+	log.Println("attempting to fetch document by ID")
+	doc, err := indexes[0].GetInternal([]byte("467"))
+	if err != nil {
+		log.Fatalf("failed to get doc by ID: %s", err.Error())
+	}
+	log.Println(string(doc))
+
 }
 
-func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup, lines []string) error {
+func createIndexer(offset int, indexPath string, batchSize int, wg *sync.WaitGroup, lines []string) error {
 	if _, err := os.Stat(indexPath); err == nil {
 		log.Printf("removing existing index at %s", indexPath)
 		os.RemoveAll(indexPath)
 	}
+	log.Printf("index created at %s with doc ID offset of %d", indexPath, offset)
 
 	//mapping := bleve.NewIndexMapping()
 	index, err := bleve.New(indexPath, buildLogLineMapping())
@@ -139,6 +148,7 @@ func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup, lines []
 			}
 
 			batch.Index(strconv.Itoa(numIndex), data)
+			batch.SetInternal([]byte(strconv.Itoa(numIndex+offset)), []byte(l))
 			batchCount++
 			numIndex++
 
