@@ -61,6 +61,8 @@ func main() {
 	// Index them!
 	log.Print("indexing commencing....")
 
+	startTime := time.Now()
+
 	// Create indexers.
 	var wg sync.WaitGroup
 	for n := 0; n < *shards; n++ {
@@ -72,8 +74,6 @@ func main() {
 		log.Printf("created indexing channel %d", n)
 	}
 
-	startTime := time.Now()
-
 	totalIndexed := len(lines) * *shards
 
 	log.Print("waiting for indexing channels to finish.")
@@ -82,13 +82,13 @@ func main() {
 	pprof.StopCPUProfile()
 
 	indexDuration := time.Since(startTime)
-	indexDurationSeconds := float64(indexDuration) / float64(time.Second)
 	timePerDoc := float64(indexDuration) / float64(totalIndexed)
 
 	log.Print("indexing complete.")
 	log.Printf("GOMAXPROCS was: %d", runtime.GOMAXPROCS(-1))
 	log.Printf("average line length: %d", totalLen/len(lines))
-	log.Printf("indexed %d documents, in %.2fs (average %.2fms/doc). %f/sec", totalIndexed, indexDurationSeconds, timePerDoc/float64(time.Millisecond), float64(totalIndexed)/indexDurationSeconds)
+	log.Printf("indexed %d documents, in %.2fs (average %.2fms/doc). %d/sec", totalIndexed, indexDuration.Seconds(),
+		timePerDoc/float64(time.Millisecond), int(float64(totalIndexed)/indexDuration.Seconds()))
 }
 
 func createIndexer(indexPath string, batchSize int, wg *sync.WaitGroup, lines []string) error {
