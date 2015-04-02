@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/blevesearch/bleve"
@@ -18,12 +19,13 @@ type Log struct {
 	ReferenceTime time.Time
 	SourceIP      net.IP
 
-	Priority int
-	Facility int
-	Host     string
-	AppName  string
-	PID      int
-	Message  string
+	Priority  int
+	Facility  int
+	Host      string
+	HostUpper string
+	AppName   string
+	PID       int
+	Message   string
 }
 
 func main() {
@@ -47,6 +49,7 @@ func main() {
 		Priority:      134,
 		Facility:      1,
 		Host:          "localhost",
+		HostUpper:     "LOCALHOST",
 		AppName:       "sshd",
 		PID:           1999,
 		Message:       "password accepted for user root",
@@ -102,7 +105,7 @@ func main() {
 	log.Println(searchResults)
 
 	q = "localhost"
-	log.Printf(`NewPhraseQuery searching for "%s in field Host"`, q)
+	log.Printf(`NewPhraseQuery searching for "%s" in field Host`, q)
 	fieldQuery := bleve.NewPhraseQuery([]string{q}, "Host")
 	search = bleve.NewSearchRequest(fieldQuery)
 	searchResults, err = index.Search(search)
@@ -112,8 +115,19 @@ func main() {
 	}
 	log.Println(searchResults)
 
+	q = "localhost"
+	log.Printf(`NewPhraseQuery searching for "%s" in field HostUpper`, q)
+	fieldQuery = bleve.NewPhraseQuery([]string{q}, "HostUpper")
+	search = bleve.NewSearchRequest(fieldQuery)
+	searchResults, err = index.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	log.Println(searchResults)
+
 	q = "LOCALhost"
-	log.Printf(`NewPhraseQuery searching for "%s in field Host"`, q)
+	log.Printf(`NewPhraseQuery searching for "%s" in field Host`, q)
 	fieldQuery = bleve.NewPhraseQuery([]string{q}, "Host")
 	search = bleve.NewSearchRequest(fieldQuery)
 	searchResults, err = index.Search(search)
@@ -124,7 +138,7 @@ func main() {
 	log.Println(searchResults)
 
 	q = "local"
-	log.Printf(`NewPhraseQuery searching for "%s in field Host"`, q)
+	log.Printf(`NewPhraseQuery searching for "%s" in field Host`, q)
 	fieldQuery = bleve.NewPhraseQuery([]string{q}, "Host")
 	search = bleve.NewSearchRequest(fieldQuery)
 	searchResults, err = index.Search(search)
@@ -135,8 +149,30 @@ func main() {
 	log.Println(searchResults)
 
 	q = "localhost"
-	log.Printf(`NewPhraseQuery searching for "%s in field AppName"`, q)
+	log.Printf(`NewPhraseQuery searching for "%s" in field AppName`, q)
 	fieldQuery = bleve.NewPhraseQuery([]string{q}, "AppName")
+	search = bleve.NewSearchRequest(fieldQuery)
+	searchResults, err = index.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	log.Println(searchResults)
+
+	q = "password"
+	log.Printf(`NewPhraseQuery searching for "%s" in field Message`, q)
+	fieldQuery = bleve.NewPhraseQuery([]string{q}, "Message")
+	search = bleve.NewSearchRequest(fieldQuery)
+	searchResults, err = index.Search(search)
+	if err != nil {
+		log.Println("error:", err.Error())
+		return
+	}
+	log.Println(searchResults)
+
+	q = "password accepted"
+	log.Printf(`NewPhraseQuery searching for "%s" in field Message`, q)
+	fieldQuery = bleve.NewPhraseQuery(strings.Split(q, " "), "Message")
 	search = bleve.NewSearchRequest(fieldQuery)
 	searchResults, err = index.Search(search)
 	if err != nil {
@@ -175,6 +211,7 @@ func buildLogLineMapping() *bleve.IndexMapping {
 	articleMapping := bleve.NewDocumentMapping()
 
 	articleMapping.AddFieldMappingsAt("Message", standardJustIndexed)
+	articleMapping.AddFieldMappingsAt("Host", standardJustIndexed)
 	articleMapping.AddFieldMappingsAt("ReferenceTime", timeJustIndexed)
 	articleMapping.AddFieldMappingsAt("ReceptionTime", timeJustIndexed)
 
